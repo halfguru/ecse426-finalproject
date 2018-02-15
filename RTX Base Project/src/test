@@ -1,0 +1,470 @@
+#define osObjectsPublic                     // define objects in main module
+#include "osObjects.h"                      // RTOS object definitions
+#include "stm32f429i_discovery_lcd.h"				// Device header
+#include <stdio.h>
+#include "stm32f4xx.h"                  
+#include "stm32f4xx_conf.h"
+#include <math.h>
+#include "LCD.h"
+
+int count;
+int result=0;
+int lastResult=1;
+int angleCount=0;
+int shape=0;
+int send=0;
+int mode;
+int angle;
+int dim=0;
+uint16_t x1[10];
+uint16_t y1[10];
+uint16_t x2[10];
+uint8_t y2[10];
+
+// ID for theads
+osThreadId circle_thread;
+osThreadId square_thread;
+osThreadId triangle_thread;
+osThreadId line_thread;
+osThreadId keypad_thread;
+osThreadId lcd_drawing_thread;
+
+void configInit_GPIO(GPIO_TypeDef* GPIOx,
+										 uint32_t periph_GPIOx,
+										 uint32_t pins,
+										 GPIOMode_TypeDef mode,
+										 GPIOSpeed_TypeDef speed,
+										 GPIOOType_TypeDef oType,
+										 GPIOPuPd_TypeDef puPd){
+	//Enable GPIO clock
+	RCC_AHB1PeriphClockCmd(periph_GPIOx, ENABLE);
+	
+	//GPIO configuration
+	GPIO_InitTypeDef gpio;
+	gpio.GPIO_Pin = pins;
+	gpio.GPIO_Mode = mode;
+	gpio.GPIO_Speed = speed;
+	gpio.GPIO_OType = oType;
+	gpio.GPIO_PuPd = puPd;
+	
+	GPIO_Init(GPIOx, &gpio);
+										 											 
+}
+
+
+
+void Keypad_readDigit(){
+	
+	configInit_GPIO(GPIOE, RCC_AHB1Periph_GPIOE,
+										GPIO_Pin_4 | GPIO_Pin_5 | GPIO_Pin_6,
+										GPIO_Mode_OUT, GPIO_Speed_100MHz, GPIO_OType_PP,
+										GPIO_PuPd_DOWN);
+	configInit_GPIO(GPIOC, RCC_AHB1Periph_GPIOC,
+										GPIO_Pin_13,
+										GPIO_Mode_OUT, GPIO_Speed_100MHz, GPIO_OType_PP,
+										GPIO_PuPd_DOWN);
+	// Set the colomns high
+	GPIO_WriteBit(GPIOE, GPIO_Pin_4 | GPIO_Pin_5 | GPIO_Pin_6, Bit_SET);
+	GPIO_WriteBit(GPIOC, GPIO_Pin_13, Bit_SET);	
+	
+	
+	// Read the rows
+	configInit_GPIO(GPIOB, RCC_AHB1Periph_GPIOB,
+										GPIO_Pin_4 | GPIO_Pin_5,
+										GPIO_Mode_IN, GPIO_Speed_100MHz, GPIO_OType_PP,
+										GPIO_PuPd_DOWN);	
+	configInit_GPIO(GPIOD, RCC_AHB1Periph_GPIOD,
+										GPIO_Pin_1 | GPIO_Pin_2,
+										GPIO_Mode_IN, GPIO_Speed_100MHz, GPIO_OType_PP,
+										GPIO_PuPd_DOWN);	
+										
+	if (GPIO_ReadInputDataBit(GPIOB, GPIO_Pin_4)== Bit_RESET && GPIO_ReadInputDataBit(GPIOB, GPIO_Pin_5) == Bit_RESET && GPIO_ReadInputDataBit(GPIOD, GPIO_Pin_1) == Bit_RESET &&	GPIO_ReadInputDataBit(GPIOD, GPIO_Pin_2) == Bit_RESET){
+		// Nothing is pressed
+		result = 99;
+	} 
+	
+	else{
+	
+		// First row
+		if (GPIO_ReadInputDataBit(GPIOB, GPIO_Pin_4) == Bit_SET){
+			// Set this row to output
+			configInit_GPIO(GPIOB, RCC_AHB1Periph_GPIOB,
+											GPIO_Pin_4,
+											GPIO_Mode_OUT, GPIO_Speed_100MHz, GPIO_OType_PP,
+											GPIO_PuPd_DOWN);	
+			// Set this row high
+			GPIO_WriteBit(GPIOB, GPIO_Pin_4, Bit_SET);			
+			
+			// Read the colomns
+			configInit_GPIO(GPIOE, RCC_AHB1Periph_GPIOE,
+											GPIO_Pin_4 | GPIO_Pin_5 | GPIO_Pin_6,
+											GPIO_Mode_IN, GPIO_Speed_100MHz, GPIO_OType_PP,
+											GPIO_PuPd_DOWN);
+			configInit_GPIO(GPIOC, RCC_AHB1Periph_GPIOC,
+											GPIO_Pin_13,
+											GPIO_Mode_IN, GPIO_Speed_100MHz, GPIO_OType_PP,
+											GPIO_PuPd_DOWN);
+			if (GPIO_ReadInputDataBit(GPIOE, GPIO_Pin_6) == Bit_SET){
+				result = 1;
+			}
+			
+			else if (GPIO_ReadInputDataBit(GPIOE, GPIO_Pin_4) == Bit_SET){
+				result = 3;
+			}
+			else if (GPIO_ReadInputDataBit(GPIOE, GPIO_Pin_5) == Bit_SET){
+				result = 10; // A
+			}
+			else if (GPIO_ReadInputDataBit(GPIOC, GPIO_Pin_13) == Bit_SET){
+				result = 2;
+			}
+		
+		} 
+		// Second row
+		else if (GPIO_ReadInputDataBit(GPIOB, GPIO_Pin_5) == Bit_SET){
+			// Set this row to output
+			configInit_GPIO(GPIOB, RCC_AHB1Periph_GPIOB,
+											GPIO_Pin_5,
+											GPIO_Mode_OUT, GPIO_Speed_100MHz, GPIO_OType_PP,
+											GPIO_PuPd_DOWN);	
+			// Set this row high
+			GPIO_WriteBit(GPIOB, GPIO_Pin_5, Bit_SET);			
+			
+			// Read the colomns
+			configInit_GPIO(GPIOE, RCC_AHB1Periph_GPIOE,
+											GPIO_Pin_4 | GPIO_Pin_5 | GPIO_Pin_6,
+											GPIO_Mode_IN, GPIO_Speed_100MHz, GPIO_OType_PP,
+											GPIO_PuPd_DOWN);
+			configInit_GPIO(GPIOC, RCC_AHB1Periph_GPIOC,
+											GPIO_Pin_13,
+											GPIO_Mode_IN, GPIO_Speed_100MHz, GPIO_OType_PP,
+											GPIO_PuPd_DOWN);
+			if (GPIO_ReadInputDataBit(GPIOE, GPIO_Pin_6) == Bit_SET){
+				result = 4;
+			}
+			
+			else if (GPIO_ReadInputDataBit(GPIOE, GPIO_Pin_4) == Bit_SET){
+				result = 6;
+			}
+			else if (GPIO_ReadInputDataBit(GPIOE, GPIO_Pin_5) == Bit_SET){
+				result = 11; // B
+			}
+			else if (GPIO_ReadInputDataBit(GPIOC, GPIO_Pin_13) == Bit_SET){
+				result = 5;
+			}
+			
+		} 
+		
+		// Third row
+		else if (GPIO_ReadInputDataBit(GPIOD, GPIO_Pin_1) == Bit_SET){
+			// Set this row to output
+			configInit_GPIO(GPIOD, RCC_AHB1Periph_GPIOD,
+											GPIO_Pin_1,
+											GPIO_Mode_OUT, GPIO_Speed_100MHz, GPIO_OType_PP,
+											GPIO_PuPd_DOWN);	
+			// Set this row high
+			GPIO_WriteBit(GPIOD, GPIO_Pin_1, Bit_SET);			
+			
+			// Read the colomns
+			configInit_GPIO(GPIOE, RCC_AHB1Periph_GPIOE,
+											GPIO_Pin_4 | GPIO_Pin_5 | GPIO_Pin_6,
+											GPIO_Mode_IN, GPIO_Speed_100MHz, GPIO_OType_PP,
+											GPIO_PuPd_DOWN);
+			configInit_GPIO(GPIOC, RCC_AHB1Periph_GPIOC,
+											GPIO_Pin_13,
+											GPIO_Mode_IN, GPIO_Speed_100MHz, GPIO_OType_PP,
+											GPIO_PuPd_DOWN);
+			if (GPIO_ReadInputDataBit(GPIOE, GPIO_Pin_6) == Bit_SET){
+				result = 7;
+			}
+
+			else if (GPIO_ReadInputDataBit(GPIOE, GPIO_Pin_4) == Bit_SET){
+				result = 9;
+			}
+			else if (GPIO_ReadInputDataBit(GPIOE, GPIO_Pin_5) == Bit_SET){
+				result = 12; // C
+			}
+			else if (GPIO_ReadInputDataBit(GPIOC, GPIO_Pin_13) == Bit_SET){
+				result = 8;
+			}
+		
+		}
+		
+		// Fourth row
+		else{
+			// Set this row to output
+			configInit_GPIO(GPIOD, RCC_AHB1Periph_GPIOD,
+											GPIO_Pin_2,
+											GPIO_Mode_OUT, GPIO_Speed_100MHz, GPIO_OType_PP,
+											GPIO_PuPd_DOWN);	
+			// Set this row high
+			GPIO_WriteBit(GPIOD, GPIO_Pin_2, Bit_SET);			
+			
+			// Read the colomns
+			configInit_GPIO(GPIOE, RCC_AHB1Periph_GPIOE,
+											GPIO_Pin_4 | GPIO_Pin_5 | GPIO_Pin_6,
+											GPIO_Mode_IN, GPIO_Speed_100MHz, GPIO_OType_PP,
+											GPIO_PuPd_DOWN);
+			configInit_GPIO(GPIOC, RCC_AHB1Periph_GPIOC,
+											GPIO_Pin_13,
+											GPIO_Mode_IN, GPIO_Speed_100MHz, GPIO_OType_PP,
+											GPIO_PuPd_DOWN);
+			if (GPIO_ReadInputDataBit(GPIOE, GPIO_Pin_6) == Bit_SET){
+				result = 21; // Mode *
+			}
+			else if (GPIO_ReadInputDataBit(GPIOE, GPIO_Pin_4) == Bit_SET){
+				result = 22; // Mode #
+			}
+			else if (GPIO_ReadInputDataBit(GPIOE, GPIO_Pin_5) == Bit_SET){
+				result = 13; // Enter
+			}
+			else if (GPIO_ReadInputDataBit(GPIOC, GPIO_Pin_13) == Bit_SET){
+				result = 0;
+			}
+			
+		}
+	}
+	
+}
+
+	
+void circle(void const *argument){
+	while(1){
+
+    LCD_Clear(LCD_COLOR_WHITE);
+	  LCD_DrawFullCircle(120, 160, 50);
+		LCD_SetTextColor(LCD_COLOR_BLUE2); 
+	 
+		osDelay(250);
+	}
+}
+void square(void const *argument){
+	while(1){
+		
+    LCD_Clear(LCD_COLOR_WHITE);
+		LCD_DrawRect(90,130,60,60);
+		LCD_SetTextColor(LCD_COLOR_MAGENTA);		
+		
+		osDelay(250);
+	}
+}
+
+void triangle(void const *argument){
+	while(1){
+
+    LCD_Clear(LCD_COLOR_WHITE);
+		LCD_FillTriangle(90, 120, 150, 130, 180, 130);
+		LCD_SetTextColor(LCD_COLOR_RED);
+
+		
+		osDelay(250);
+	}
+}
+
+void line(void const *argument){
+	while(1){
+		LCD_SetTextColor(LCD_COLOR_RED);
+		//LCD_DrawLine(uint16_t Xpos, uint16_t Ypos, uint16_t Length, uint8_t Direction);
+		//LCD_DrawUniLine(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2);
+		
+		for (int i=0; i< sizeof(x1); i++)
+		LCD_DrawUniLine(x1[i],y1[i],x2[i],y2[i]);
+		
+		osDelay(250);
+		}
+	}
+
+osThreadDef(circle, osPriorityNormal, 1, 0);
+osThreadDef(square, osPriorityNormal, 1, 0);
+osThreadDef(triangle, osPriorityNormal, 1, 0);
+osThreadDef(line, osPriorityNormal, 1, 0);
+
+void lcd_drawing(int mode, int result, int anglecount){
+	send = 0;
+	//Keypad_readDigit();
+	if (result != lastResult){
+		if (result == 21) mode = 0;
+		if (result == 22) {
+			mode = 1;
+			send = 1;
+		}
+			
+		if (mode == 0){
+			
+			// Shapes
+			if (result == 10) {
+				circle_thread = osThreadCreate(osThread(circle), NULL);
+				printf("circle");
+			}
+			else if (result == 11){
+				square_thread = osThreadCreate(osThread(square), NULL);
+				printf("square");
+			}
+			else if (result == 12){
+				triangle_thread = osThreadCreate(osThread(triangle), NULL);
+				printf("triangle");
+			}
+			
+				// Straight lines
+			else if (result != 13){
+				printf("result: %i", result);
+				shape = 0;
+				if (result == 6){
+					x1[dim]=x2[dim];
+					x2[dim]=x2[dim]+10;
+				}
+				if (result == 2){
+					x1[dim]=x2[dim];
+					x2[dim]=x2[dim]-10;
+				}
+				if (result == 4){
+					y1[dim]=y2[dim];
+					y2[dim]=y2[dim]+10;
+				}
+					if (result == 8){
+					y1[dim]=y2[dim];
+					y2[dim]=y2[dim]-10;
+				}
+					
+//				// 30 to 60 degrees
+//				if (result == 3) {
+//					if (angleCount == 0){
+//						x1=x2;
+//						x2=x2+10*cos(30);
+//						y1=y2;
+//						y2=y2+10*sin(30);
+//						
+//					}else if (angleCount == 1){
+//						x1=x2;
+//						x2=x2+10*cos(45);
+//						y1=y2;
+//						y2=y2+10*sin(45);
+//						
+//					}else if (angleCount == 2){
+//						x1=x2;
+//						x2=x2+10*cos(60);
+//						y1=y2;
+//						y2=y2+10*sin(60);
+//			
+//					}
+//				}
+//				// 120 to 150 decrees
+//				if (result == 1) {
+//					if (angleCount == 0){
+//						x1=x2;
+//						x2=x2+10*cos(120);
+//						y1=y2;
+//						y2=y2+10*sin(120);
+//					
+//					}else if (angleCount == 1){
+//						x1=x2;
+//						x2=x2+10*cos(135);
+//						y1=y2;
+//						y2=y2+10*sin(135);
+//						
+//					}else if (angleCount == 2){
+//						x1=x2;
+//						x2=x2+10*cos(150);
+//						y1=y2;
+//						y2=y2+10*sin(150);
+//			
+//					}
+//				}
+//				// 210 to 240 decrees
+//			if (result == 7) {
+//					if (angleCount == 0){
+//						x1=x2;
+//						x2=x2+10*cos(210);
+//						y1=y2;
+//						y2=y2+10*sin(210);
+//			
+//					}else if (angleCount == 1){
+//						x1=x2;
+//						x2=x2+10*cos(225);
+//						y1=y2;
+//						y2=y2+10*sin(225);
+//
+//					}else if (angleCount == 2){
+//						x1=x2;
+//						x2=x2+10*cos(240);
+//						y1=y2;
+//						y2=y2+10*sin(240);
+//					}
+//				}
+//				// 300 to 330 decrees
+//				if (result == 9) {
+//					if (angleCount == 0){
+//						x1=x2;
+//						x2=x2+10*cos(300);
+//						y1=y2;
+//						y2=y2+10*sin(300);
+//					}else if (angleCount == 1){
+//						x1=x2;
+//						x2=x2+10*cos(315);
+//						y1=y2;
+//						y2=y2+10*sin(315);
+//					}else if (angleCount == 2){
+//						x1=x2;
+//						x2=x2+10*cos(330);
+//						y1=y2;
+//						y2=y2+10*sin(330);
+//					}
+//				}
+//				
+			}
+			line_thread = osThreadCreate(osThread(line), NULL);
+			// send result
+			if (result == 5) {
+				LCD_Clear(LCD_COLOR_WHITE);
+				for (int i=0; i< sizeof(x1); i++){
+					x1[i]=0;
+					x2[i]=0;
+					y1[i]=0;
+					y2[i]=0;
+				}
+				shape = 0;
+				send = 1;
+				angleCount =0;
+			}else if (result == 13) {
+				send = 1;
+				angleCount =0;
+				printf("shape: %i\n", shape);
+			}
+			
+		}else if (mode == 1){
+			
+			printf("I am here...\n");
+				shape = 0; //
+				send = 1;
+			}
+
+		
+		
+		count = 0;
+			dim++;
+	}else	if (result == 99) {
+		count ++;
+	}
+	
+	lastResult = result; 
+}
+
+
+int main (void) {
+ osKernelInitialize ();                    // initialize CMSIS-RTOS
+  LCD_Init();
+  LCD_LayerInit();
+  LTDC_Cmd(ENABLE);
+  LCD_SetLayer(LCD_FOREGROUND_LAYER);
+	LCD_Clear(LCD_COLOR_WHITE);
+	lcd_drawing(0,10,2); //square
+	lcd_drawing(0,6,2); //turn right
+	
+	osKernelStart ();                         // start thread execution 
+	
+}
+
+//pd2pd5pd7pd4pe2pe3
+
+
+
+
