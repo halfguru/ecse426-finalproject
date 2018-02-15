@@ -11,3 +11,10 @@ This experiment involves the development of a 3D mechanical printer system which
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md) file for details
+
+## Acknowledgements
+* Xavier Sit
+* Sidney Ng
+* Meng Yin Tao
+* Kai 
+* Prof. [Zeljko Zilic](http://www.ece.mcgill.ca/~zzilic/) for his assistance throughout our ECSE 426 course.
